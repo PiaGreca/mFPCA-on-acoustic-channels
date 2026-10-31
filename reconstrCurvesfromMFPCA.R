@@ -3,21 +3,20 @@ library(lme4)
 library(emmeans)
 
 # =================================================================
-# 0. Quali componenti combinare
+# 0. choose what principal components to combine
 # =================================================================
-# Basta cambiare questo vettore per usare più (o meno) PC, es. 1:3, 1, ma anche c(1, 3)
+# Change following vector to use one or more PC, es. 1:3, 1, or even c(1, 3)
 pcs        <- 1:2
-score_vars <- paste0("s", pcs)   # nomi delle colonne degli score in PCscores
-                                  # -> assumo "s1", "s2"; correggi se diverso
+score_vars <- paste0("s", pcs)   # column nouns with scores in df PCscores
+                                  
 
-crit_val <- qnorm(0.975)         # ~1.96, usato per ricostruire la banda di
-                                  # confidenza combinata (approssimazione
-                                  # normale — vedi nota sotto)
+crit_val <- qnorm(0.975)         # ~1.96, used to reconstructed confidence band
+                                 # following a normal approximation
 
 # =================================================================
-# 1. Un modello misto per ciascuna PC, poi emmeans in formato "long"
+# 1. a mixed model PC, then emmeans in a "long" format
 # =================================================================
-# Stessa formula del tuo modello originale, solo la variabile risposta cambia
+# you change the LMER model according to your needs
 fit_one_pc <- function(score_var) {
   form <- as.formula(
     paste(score_var, "~ dialect * syllable + (1 | word) + (syllable | speaker)")
@@ -28,43 +27,34 @@ fit_one_pc <- function(score_var) {
 pc_models <- set_names(score_vars, pcs) %>%
   map(fit_one_pc)
 
-# per ogni PC estraggo emmean, SE, lower/upper CL; PC = indice della componente
+# for each PC extract emmean, SE, lower/upper CL
 pc_emmeans <- pc_models %>%
   imap_dfr(~ emmeans(.x, ~ syllable | dialect) %>%
               as_tibble() %>%
               mutate(PC = as.integer(.y)))
 
-# Se ti servono anche i contrasti a coppie per ciascuna PC (come nel tuo
-# `pairwise ~ syllable|dialect`), puoi estrarli allo stesso modo per singolo
-# modello, es.: emmeans(pc_models$`1`, pairwise ~ syllable|dialect)$contrasts
-
 # =================================================================
-# 2. Ricostruzione delle curve: mean + sum_k( emmean_k * eigenfunction_k )
+# 2. Reconstruction of curves: mean + sum_k( emmean_k * eigenfunction_k )
 # =================================================================
 predCurves <- pc_emmeans %>%
   expand_grid(Dim = DimCurves) %>%
   group_by(syllable, dialect, Dim) %>%
   reframe({
 
-    # IMPORTANTE: con più PC il gruppo ha più di una riga, quindi "Dim"
-    # (colonna di raggruppamento) qui dentro sarebbe un vettore tipo c(1,1)
-    # invece che uno scalare. mfpca$meanFunction[[c(1,1)]] farebbe
-    # un'indicizzazione RICORSIVA (equivalente a mfpca$meanFunction[[1]][[1]])
-    # anziché selezionare l'elemento 1 -> lo forzo a scalare qui:
     Dim <- Dim[1]
 
-    # griglia temporale + funzione media, comune a tutte le PC di questo Dim
+    # time frame + mean function, which is common to all PCs
     base <- funData2long1(mfpca$meanFunction[[Dim]], value = "y0")
 
-    # valori dell'autofunzione della PC "pc"
+    # values of eigenfunction
     eig_y <- function(pc) funData2long1(mfpca$functions[[Dim]][pc], value = "y")$y
 
-    # contributo alla curva media: somma pesata delle autofunzioni
+    # contribution of the mean curve: weighted sum of eigenfunctions
     contrib <- map2(PC, emmean, function(pc, m) {
       m * eig_y(pc)
     }) %>% reduce(`+`)
 
-    # contributo alla varianza punto-per-punto (assumendo PC indipendenti):
+    # contribution to variance point-by-point:
     # Var(t) = sum_k( SE_k^2 * eigenfunction_k(t)^2 )
     var_contrib <- map2(PC, SE, function(pc, se) {
       (se * eig_y(pc))^2
@@ -82,7 +72,7 @@ predCurves <- pc_emmeans %>%
   })
 
 # =================================================================
-# 3. Ricostruzione delle durate (lograte combinato dalle stesse PC)
+# 3. Reconstruction of durations (lograte combined from the same PCs)
 # =================================================================
 predDur <- pc_emmeans %>%
   expand_grid(landmarks2long(reg$landmarks)) %>%
@@ -95,14 +85,13 @@ predDur <- pc_emmeans %>%
     )
   )
 
-# aggiungo la posizione cumulativa dei landmark (come nello script originale)
+# add the cumulative position of landmarks
 predDur <- predDur %>%
   group_by(syllable, dialect) %>%
   mutate(land = cumsum(duration))
 
 # =================================================================
-# 4. Da qui in poi: IDENTICO al tuo script originale
-#    (allineamento temporale, landmark, plot — non dipende dal numero di PC)
+# 4. Temporal alignment, landmark, plot 
 # =================================================================
 predCurves <- predCurves %>%
   group_by(syllable, dialect) %>%
@@ -165,8 +154,7 @@ ggplot(predCurves) +
         strip.text.y = element_text(color = "black", size = 12))
 
 # =================================================================
-# 5. New part compared to ICPhS analysis: calculate nasalance
-# from *reconstructed* oral and nasal curves
+# 5. Calculate nasalance from *reconstructed* oral and nasal curves
 # =================================================================
 #
 # save df before transforming it
@@ -208,7 +196,7 @@ p_all <- ggplot(nas,
                 
 p_all
 
-# 6. Salvataggio ---------------------------------------------
+# 6. Save plot (change dims as you wish) ---------------------------------------------
 
 ggsave("nasalance.png", p_all, width = 9, height = 4.5, dpi = 300) # change sets as you wish
 
