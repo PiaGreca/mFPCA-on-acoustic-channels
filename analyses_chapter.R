@@ -14,6 +14,7 @@ library(MuMIn)
 ##### 0. INTRO
 #####
 
+# this is the directory of my df, you can replace with your directory
 setwd("//phonetik.uni-muenchen.de/vdata/users_share_tmp/Quebec&FrenchNasals/Merged_Data")
 
 D = readRDS("merged_data_dualchannel.RDS")
@@ -21,7 +22,7 @@ D = readRDS("merged_data_dualchannel.RDS")
 # This script represents a special version of "exLand.R" by Michele Gubian which you can find here: 
 # https://github.com/uasolo/FPCA-phonetics-workshop/blob/master/scripts/
 
-# exclude two speakers, nmf23 and nmf03:
+# for this analysis we had to exclude two speakers, nmf23 and nmf03:
 
 levels(factor(D$speaker)) %>% length()
 
