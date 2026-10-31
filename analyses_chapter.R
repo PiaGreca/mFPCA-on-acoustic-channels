@@ -18,7 +18,7 @@ setwd("//phonetik.uni-muenchen.de/vdata/users_share_tmp/Quebec&FrenchNasals/Merg
 
 D = readRDS("merged_data_dualchannel.RDS")
 
-# This script is *highly inspired* by exLand.R by Michele Gubian which you can find here: 
+# This script represents a special version of "exLand.R" by Michele Gubian which you can find here: 
 # https://github.com/uasolo/FPCA-phonetics-workshop/blob/master/scripts/
 
 # exclude two speakers, nmf23 and nmf03:
